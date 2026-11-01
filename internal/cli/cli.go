@@ -28,6 +28,7 @@ func New(version string) *console.Application {
 			serveCommand(),
 			runCommand(),
 			superviseCommand(),
+			pinCommand(),
 		},
 	}
 }
@@ -125,6 +126,21 @@ func superviseCommand() *console.Command {
 	}
 }
 
+func pinCommand() *console.Command {
+	return &console.Command{
+		Name:   "pin",
+		Usage:  "Hold the pinned tab keeping the app space open (started by serve and run)",
+		Hidden: console.Hide,
+		Action: func(_ *console.Context) error {
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGHUP)
+			defer stop()
+			signal.Notify(make(chan os.Signal, 1), os.Interrupt)
+			supervise.Pin(ctx, os.Stdout)
+			return nil
+		},
+	}
+}
+
 func setup(c *console.Context) (config.Config, *schedule.Launcher, error) {
 	path := c.String("config")
 	if path == "" {
@@ -149,5 +165,5 @@ func setup(c *console.Context) (config.Config, *schedule.Launcher, error) {
 	if err != nil {
 		return config.Config{}, nil, err
 	}
-	return cfg, schedule.NewLauncher(cfg, hc.New(bin), []string{self, "supervise", "--hc", bin}), nil
+	return cfg, schedule.NewLauncher(cfg, hc.New(bin), self, bin, home), nil
 }

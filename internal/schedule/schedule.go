@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/fabpot/herdr-cron/internal/config"
@@ -20,6 +21,7 @@ const (
 	LabelJob   = "herdr-cron.job"
 	LabelState = "herdr-cron.state"
 	LabelExit  = "herdr-cron.exit"
+	LabelPin   = "herdr-cron.pin"
 
 	StateRunning = "running"
 	StateDone    = "done"
@@ -43,24 +45,48 @@ type Launcher struct {
 	// Supervisor is the argv prefix running the supervisor; the job name,
 	// keep duration and command are appended.
 	Supervisor []string
-	Now        func() time.Time
-	NewID      func() string
+	// Pin is the argv of the program holding the space's pinned tab.
+	Pin    []string
+	PinDir string
+	Now    func() time.Time
+	NewID  func() string
 }
 
-// NewLauncher wires a launcher for the configuration.
-func NewLauncher(cfg config.Config, terminals Terminals, supervisor []string) *Launcher {
+// NewLauncher wires a launcher for the configuration; self is the
+// herdr-cron executable, hcBin the hc one.
+func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home string) *Launcher {
 	return &Launcher{
 		Terminals:  terminals,
 		Space:      cfg.Space,
-		Supervisor: supervisor,
+		Supervisor: []string{self, "supervise", "--hc", hcBin},
+		Pin:        []string{self, "pin"},
+		PinDir:     home,
 		Now:        time.Now,
 		NewID:      randomID,
 	}
 }
 
-// Launch starts a run of the job and returns its terminal address, or
-// ErrRunning when its previous run has not finished.
+// EnsurePin starts the space's pinned tab unless it is running. The app
+// deletes a space, name included, when its last tab closes: the pinned tab
+// keeps it.
+func (l *Launcher) EnsurePin(ctx context.Context) error {
+	labels := map[string]string{LabelPin: "true", "herdr.space": l.Space}
+	pins, err := l.Terminals.List(ctx, labels)
+	if err != nil || len(pins) > 0 {
+		return err
+	}
+	labels = maps.Clone(labels)
+	labels["herdr.tab"] = "tb" + l.NewID()
+	_, err = l.Terminals.Start(ctx, hc.StartOptions{Dir: l.PinDir, Labels: labels, Argv: l.Pin})
+	return err
+}
+
+// Launch starts a run of the job, after the space's pinned tab, and returns
+// its terminal address, or ErrRunning when its previous run has not finished.
 func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
+	if err := l.EnsurePin(ctx); err != nil {
+		return "", err
+	}
 	running, err := l.Terminals.List(ctx, map[string]string{LabelJob: job.Name, LabelState: StateRunning})
 	if err != nil {
 		return "", err
@@ -98,6 +124,9 @@ func Serve(ctx context.Context, jobs []config.Job, l *Launcher, log zerolog.Logg
 		}); err != nil {
 			return fmt.Errorf("%s: %w", job.Name, err)
 		}
+	}
+	if err := l.EnsurePin(ctx); err != nil {
+		log.Error().Err(err).Msg("pinned tab not started")
 	}
 	c.Start()
 	log.Info().Int("jobs", len(jobs)).Msg("scheduler started")

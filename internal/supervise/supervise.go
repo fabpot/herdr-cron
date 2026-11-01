@@ -140,3 +140,16 @@ func linger(ctx context.Context, d time.Duration) {
 	case <-t.C:
 	}
 }
+
+// PinMessage is what the pinned tab shows.
+const PinMessage = `herdr-cron: do not close this tab.
+
+It keeps this space and its name: the Herdr app deletes a space when its last
+tab closes. Scheduled runs open as new tabs next to it.
+`
+
+// Pin shows PinMessage and waits until ctx is done.
+func Pin(ctx context.Context, out io.Writer) {
+	_, _ = io.WriteString(out, PinMessage)
+	<-ctx.Done()
+}
