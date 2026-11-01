@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/fabpot/herdr-cron/internal/config"
@@ -35,6 +36,8 @@ var ErrRunning = errors.New("the previous run is still running")
 type Terminals interface {
 	Start(ctx context.Context, o hc.StartOptions) (string, error)
 	List(ctx context.Context, labels map[string]string) ([]hc.Terminal, error)
+	Get(ctx context.Context, address string) (hc.Terminal, error)
+	Kill(ctx context.Context, address string) error
 }
 
 // Launcher starts runs as tabs of a Herdr app space, each under a
@@ -68,17 +71,42 @@ func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home strin
 
 // EnsurePin starts the space's pinned tab unless it is running. The app
 // deletes a space, name included, when its last tab closes: the pinned tab
-// keeps it.
+// keeps it. A pinned tab no longer running the pin program, like a kept
+// terminal herdr-core gave a shell when it restarted, is replaced: a new pin
+// starts first, and the stale one is killed by the next call.
 func (l *Launcher) EnsurePin(ctx context.Context) error {
 	labels := map[string]string{LabelPin: "true", "herdr.space": l.Space}
 	pins, err := l.Terminals.List(ctx, labels)
-	if err != nil || len(pins) > 0 {
+	if err != nil {
 		return err
 	}
-	labels = maps.Clone(labels)
-	labels["herdr.tab"] = "tb" + l.NewID()
-	_, err = l.Terminals.Start(ctx, hc.StartOptions{Dir: l.PinDir, Labels: labels, Argv: l.Pin})
-	return err
+	running := false
+	var stale []string
+	for _, p := range pins {
+		t, err := l.Terminals.Get(ctx, p.Address)
+		if err != nil {
+			return err
+		}
+		if slices.Equal(t.Argv, l.Pin) {
+			running = true
+		} else {
+			stale = append(stale, p.Address)
+		}
+	}
+	if !running {
+		labels = maps.Clone(labels)
+		labels["herdr.tab"] = "tb" + l.NewID()
+		// Stale pins wait for a later call: the app adopts a new tab some time
+		// after it starts, and killing them now would empty the space.
+		_, err := l.Terminals.Start(ctx, hc.StartOptions{Dir: l.PinDir, Labels: labels, Argv: l.Pin})
+		return err
+	}
+	for _, addr := range stale {
+		if err := l.Terminals.Kill(ctx, addr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Launch starts a run of the job, after the space's pinned tab, and returns

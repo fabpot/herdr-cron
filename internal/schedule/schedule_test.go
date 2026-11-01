@@ -18,11 +18,27 @@ type fakeTerminals struct {
 	pinned  []hc.Terminal
 	listed  []map[string]string
 	started []hc.StartOptions
+	ops     []string
 }
 
 func (f *fakeTerminals) Start(_ context.Context, o hc.StartOptions) (string, error) {
 	f.started = append(f.started, o)
+	f.ops = append(f.ops, "start")
 	return "t9", nil
+}
+
+func (f *fakeTerminals) Get(_ context.Context, address string) (hc.Terminal, error) {
+	for _, t := range f.pinned {
+		if t.Address == address {
+			return t, nil
+		}
+	}
+	return hc.Terminal{}, errors.New("no terminal " + address)
+}
+
+func (f *fakeTerminals) Kill(_ context.Context, address string) error {
+	f.ops = append(f.ops, "kill "+address)
+	return nil
 }
 
 func (f *fakeTerminals) List(_ context.Context, labels map[string]string) ([]hc.Terminal, error) {
@@ -45,10 +61,12 @@ func newTestLauncher(terms *fakeTerminals) *Launcher {
 	}
 }
 
+var pin = hc.Terminal{Address: "t1", Argv: []string{"/usr/bin/herdr-cron", "pin"}}
+
 var job = config.Job{Name: "review", Schedule: "@daily", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}, Keep: 48 * time.Hour}
 
 func TestLaunch(t *testing.T) {
-	terms := &fakeTerminals{pinned: []hc.Terminal{{Address: "t1"}}}
+	terms := &fakeTerminals{pinned: []hc.Terminal{pin}}
 	addr, err := newTestLauncher(terms).Launch(t.Context(), job)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +100,7 @@ func TestLaunch(t *testing.T) {
 }
 
 func TestLaunchSkipsARunningJob(t *testing.T) {
-	terms := &fakeTerminals{running: []hc.Terminal{{Address: "t4"}}, pinned: []hc.Terminal{{Address: "t1"}}}
+	terms := &fakeTerminals{running: []hc.Terminal{{Address: "t4"}}, pinned: []hc.Terminal{pin}}
 	_, err := newTestLauncher(terms).Launch(t.Context(), job)
 	if !errors.Is(err, ErrRunning) {
 		t.Errorf("err = %v, want ErrRunning", err)
@@ -110,6 +128,29 @@ func TestLaunchStartsTheMissingPinFirst(t *testing.T) {
 	}
 	if terms.started[1].Labels[LabelJob] != "review" {
 		t.Errorf("second terminal = %+v, want the run", terms.started[1])
+	}
+}
+
+func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
+	// herdr-core gives a kept terminal a shell when it restarts.
+	terms := &fakeTerminals{pinned: []hc.Terminal{{Address: "t2", Argv: []string{"/usr/bin/fish"}}}}
+	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"start", "start"}; !slices.Equal(terms.ops, want) {
+		t.Fatalf("ops = %q, want %q", terms.ops, want)
+	}
+	if got := terms.started[0]; got.Labels[LabelPin] != "true" || !slices.Equal(got.Argv, pin.Argv) {
+		t.Errorf("first terminal = %+v, want the pin", got)
+	}
+
+	terms.pinned = append(terms.pinned, pin)
+	terms.ops = nil
+	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kill t2", "start"}; !slices.Equal(terms.ops, want) {
+		t.Errorf("next launch ops = %q, want %q", terms.ops, want)
 	}
 }
 

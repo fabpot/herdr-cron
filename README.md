@@ -80,7 +80,8 @@ Start a run by hand with `herdr-cron run <job>`.
 Runs land in a space that the app creates on the first run; rename it once
 (for instance "Scheduled") to recognize it. Its first tab is pinned: it asks
 you not to close it, because the app deletes a space, name included, when its
-last tab closes. If it is closed anyway, it comes back with the next run. To use an existing space instead,
+last tab closes. If it is closed anyway, or turned into a plain shell when
+herdr-core restarts, it comes back with the next run. To use an existing space instead,
 set `space` to its id, read from the `herdr.space` label of one of its
 terminals (`hc get <terminal>`).
 

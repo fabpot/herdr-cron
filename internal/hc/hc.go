@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os/exec"
@@ -36,10 +37,16 @@ type StartOptions struct {
 	Argv   []string
 }
 
-// Terminal is a live terminal, as listed by hc.
+// notFoundExit is the exit code of hc when the terminal does not exist.
+const notFoundExit = 3
+
+type exitCoder interface{ ExitCode() int }
+
+// Terminal is a live terminal, as listed by hc. Only Get fills Argv.
 type Terminal struct {
-	Address string `json:"address"`
-	State   string `json:"state"`
+	Address string   `json:"address"`
+	State   string   `json:"state"`
+	Argv    []string `json:"argv"`
 }
 
 // Start runs argv in a new terminal without a parent, removed once it exits,
@@ -73,6 +80,24 @@ func (c *Client) List(ctx context.Context, labels map[string]string) ([]Terminal
 		return nil, err
 	}
 	return res.Terminals, nil
+}
+
+// Get returns a terminal with the argv of its program.
+func (c *Client) Get(ctx context.Context, address string) (Terminal, error) {
+	var t Terminal
+	err := c.call(ctx, &t, "get", "--json", address)
+	return t, err
+}
+
+// Kill ends a terminal's program; a terminal already gone is not an error.
+func (c *Client) Kill(ctx context.Context, address string) error {
+	err := c.call(ctx, nil, "kill", "--json", address)
+	// hc reports a terminal started with --rm as not found once killed.
+	var e exitCoder
+	if errors.As(err, &e) && e.ExitCode() == notFoundExit {
+		return nil
+	}
+	return err
 }
 
 // Label sets labels on a terminal.
