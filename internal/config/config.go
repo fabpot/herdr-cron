@@ -38,7 +38,6 @@ var (
 // Config is a validated configuration.
 type Config struct {
 	Space string
-	Keep  time.Duration
 	Jobs  []Job
 }
 
@@ -48,6 +47,8 @@ type Job struct {
 	Schedule string
 	Dir      string
 	Command  []string
+	// Keep is how long a finished run stays visible.
+	Keep time.Duration
 }
 
 // Job returns the job with the given name.
@@ -71,6 +72,7 @@ type fileJob struct {
 	Schedule string   `toml:"schedule"`
 	Dir      string   `toml:"dir"`
 	Command  []string `toml:"command"`
+	Keep     string   `toml:"keep"`
 }
 
 // DefaultPath is where the configuration lives unless told otherwise.
@@ -111,25 +113,22 @@ func Parse(data, home string) (Config, error) {
 		return Config{}, fmt.Errorf("unknown keys: %s", strings.Join(keys, ", "))
 	}
 
-	cfg := Config{Space: DefaultSpace, Keep: DefaultKeep}
+	cfg := Config{Space: DefaultSpace}
 	if f.Space != "" {
 		if !spaceRe.MatchString(f.Space) {
 			return Config{}, fmt.Errorf("space %q must be a Herdr app space id: \"sp\" followed by 32 hex digits", f.Space)
 		}
 		cfg.Space = f.Space
 	}
-	if f.Keep != "" {
-		keep, err := time.ParseDuration(f.Keep)
-		if err != nil || keep < 0 {
-			return Config{}, fmt.Errorf("keep %q must be a duration such as \"72h\" or \"30m\"", f.Keep)
-		}
-		cfg.Keep = keep
+	keep, err := parseKeep(f.Keep, DefaultKeep)
+	if err != nil {
+		return Config{}, err
 	}
 
 	var errs []error
 	seen := map[string]bool{}
 	for i, fj := range f.Jobs {
-		job, err := validateJob(fj, home)
+		job, err := validateJob(fj, home, keep)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("job #%d: %w", i+1, err))
 			continue
@@ -147,7 +146,7 @@ func Parse(data, home string) (Config, error) {
 	return cfg, nil
 }
 
-func validateJob(fj fileJob, home string) (Job, error) {
+func validateJob(fj fileJob, home string, defaultKeep time.Duration) (Job, error) {
 	if !nameRe.MatchString(fj.Name) || len(fj.Name) > MaxNameLength {
 		return Job{}, fmt.Errorf("name %q must be 1 to %d characters among a-z, 0-9, \"-\" and \"_\", starting with a letter or digit", fj.Name, MaxNameLength)
 	}
@@ -167,5 +166,20 @@ func validateJob(fj fileJob, home string) (Job, error) {
 	if !filepath.IsAbs(dir) {
 		return Job{}, fmt.Errorf("%s: dir %q must be absolute or start with \"~/\"", fj.Name, fj.Dir)
 	}
-	return Job{Name: fj.Name, Schedule: fj.Schedule, Dir: dir, Command: fj.Command}, nil
+	keep, err := parseKeep(fj.Keep, defaultKeep)
+	if err != nil {
+		return Job{}, fmt.Errorf("%s: %w", fj.Name, err)
+	}
+	return Job{Name: fj.Name, Schedule: fj.Schedule, Dir: dir, Command: fj.Command, Keep: keep}, nil
+}
+
+func parseKeep(value string, fallback time.Duration) (time.Duration, error) {
+	if value == "" {
+		return fallback, nil
+	}
+	keep, err := time.ParseDuration(value)
+	if err != nil || keep < 0 {
+		return 0, fmt.Errorf("keep %q must be a duration such as \"72h\" or \"30m\"", value)
+	}
+	return keep, nil
 }

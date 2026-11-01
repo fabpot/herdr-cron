@@ -33,14 +33,13 @@ func newTestLauncher(terms *fakeTerminals) *Launcher {
 	return &Launcher{
 		Terminals:  terms,
 		Space:      "sp00000000000000000000000000000001",
-		Keep:       48 * time.Hour,
 		Supervisor: []string{"/usr/bin/herdr-cron", "exec", "--hc", "/usr/bin/hc"},
 		Now:        func() time.Time { return time.Date(2026, 11, 2, 3, 0, 5, 0, time.UTC) },
 		NewID:      func() string { return "0123" },
 	}
 }
 
-var job = config.Job{Name: "review", Schedule: "@daily", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}}
+var job = config.Job{Name: "review", Schedule: "@daily", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}, Keep: 48 * time.Hour}
 
 func TestLaunch(t *testing.T) {
 	terms := &fakeTerminals{}

@@ -23,15 +23,13 @@ command = ["void", "agent", "agents/review.md"]
 name = "hourly"
 schedule = "@every 6h"
 command = ["true"]
+keep = "90m"
 `, "/home/me")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Space != DefaultSpace {
 		t.Errorf("space = %q, want the default", cfg.Space)
-	}
-	if cfg.Keep != 24*time.Hour {
-		t.Errorf("keep = %s, want 24h", cfg.Keep)
 	}
 	if len(cfg.Jobs) != 2 {
 		t.Fatalf("got %d jobs, want 2", len(cfg.Jobs))
@@ -46,15 +44,21 @@ command = ["true"]
 	if cfg.Jobs[1].Dir != "/home/me" {
 		t.Errorf("dir = %q, want home by default", cfg.Jobs[1].Dir)
 	}
+	if review.Keep != 24*time.Hour {
+		t.Errorf("keep = %s, want the global 24h", review.Keep)
+	}
+	if cfg.Jobs[1].Keep != 90*time.Minute {
+		t.Errorf("keep = %s, want the job's own 90m", cfg.Jobs[1].Keep)
+	}
 }
 
 func TestParseDefaults(t *testing.T) {
-	cfg, err := Parse("", "/home/me")
+	cfg, err := Parse("[[jobs]]\nname = \"a\"\nschedule = \"@daily\"\ncommand = [\"true\"]", "/home/me")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Keep != DefaultKeep || cfg.Space != DefaultSpace || len(cfg.Jobs) != 0 {
-		t.Errorf("got %+v, want defaults and no jobs", cfg)
+	if cfg.Space != DefaultSpace || cfg.Jobs[0].Keep != DefaultKeep {
+		t.Errorf("got %+v, want the default space and keep", cfg)
 	}
 	if !spaceRe.MatchString(DefaultSpace) {
 		t.Errorf("default space %q is not a space id", DefaultSpace)
@@ -74,6 +78,7 @@ func TestParseErrors(t *testing.T) {
 		{"bad space", `space = "Scheduled"`, "must be a Herdr app space id"},
 		{"bad keep", `keep = "3 days"`, "must be a duration"},
 		{"negative keep", `keep = "-1h"`, "must be a duration"},
+		{"bad job keep", job(valid + "\nkeep = \"2 days\""), "a: keep \"2 days\" must be a duration"},
 		{"bad name", job(strings.Replace(valid, `"a"`, `"Nightly"`, 1)), "name \"Nightly\" must be"},
 		{"long name", job(strings.Replace(valid, `"a"`, `"`+strings.Repeat("a", MaxNameLength+1)+`"`, 1)), "must be 1 to 20"},
 		{"bad schedule", job(strings.Replace(valid, "@daily", "every day", 1)), "schedule \"every day\""},

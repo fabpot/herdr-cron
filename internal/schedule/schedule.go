@@ -40,7 +40,6 @@ type Terminals interface {
 type Launcher struct {
 	Terminals Terminals
 	Space     string
-	Keep      time.Duration
 	// Supervisor is the argv prefix running the supervisor; the job name,
 	// keep duration and command are appended.
 	Supervisor []string
@@ -53,7 +52,6 @@ func NewLauncher(cfg config.Config, terminals Terminals, supervisor []string) *L
 	return &Launcher{
 		Terminals:  terminals,
 		Space:      cfg.Space,
-		Keep:       cfg.Keep,
 		Supervisor: supervisor,
 		Now:        time.Now,
 		NewID:      randomID,
@@ -71,7 +69,7 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 		return "", fmt.Errorf("%s: %w in %s", job.Name, ErrRunning, running[0].Address)
 	}
 
-	argv := append(append([]string{}, l.Supervisor...), "--job", job.Name, "--keep", l.Keep.String(), "--")
+	argv := append(append([]string{}, l.Supervisor...), "--job", job.Name, "--keep", job.Keep.String(), "--")
 	return l.Terminals.Start(ctx, hc.StartOptions{
 		Name: job.Name + "-" + l.Now().Format("0102-150405"),
 		Dir:  job.Dir,

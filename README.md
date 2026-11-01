@@ -22,7 +22,7 @@ go install github.com/fabpot/herdr-cron@latest
 `~/.config/herdr-cron/config.toml`:
 
 ```toml
-# How long a finished run stays visible (default: 72h)
+# How long a finished run stays visible, unless a job sets its own (default: 72h)
 keep = "72h"
 
 [[jobs]]
@@ -30,6 +30,12 @@ name = "nightly-review"
 schedule = "0 3 * * 1-5"
 dir = "~/src/app"
 command = ["/home/me/.local/bin/claude", "-p", "Review the commits merged yesterday and report any bug you find."]
+
+[[jobs]]
+name = "weather"
+schedule = "@hourly"
+command = ["/usr/bin/curl", "-fsS", "https://wttr.in/Paris?format=3"]
+keep = "2h"
 ```
 
 * `name`: 1 to 20 characters among `a-z`, `0-9`, `-` and `_`.
@@ -38,6 +44,8 @@ command = ["/home/me/.local/bin/claude", "-p", "Review the commits merged yester
 * `dir`: where the command runs (default: your home directory).
 * `command`: the program and its arguments; prefer absolute paths, as the
   command gets herdr-core's environment.
+* `keep`: how long this job's finished runs stay visible, overriding the
+  global `keep`.
 
 A job is skipped while its previous run is still running.
 
