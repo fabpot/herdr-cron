@@ -1,0 +1,123 @@
+// Package hc drives herdr-core through its hc command line.
+package hc
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"maps"
+	"os/exec"
+	"slices"
+	"strings"
+)
+
+// Runner runs a program and returns its standard output.
+type Runner interface {
+	Output(ctx context.Context, name string, args ...string) ([]byte, error)
+}
+
+// Client talks to the local herdr-core.
+type Client struct {
+	Bin    string
+	Runner Runner
+}
+
+// New returns a client running the hc binary at bin.
+func New(bin string) *Client {
+	return &Client{Bin: bin, Runner: execRunner{}}
+}
+
+// StartOptions describes a terminal to start.
+type StartOptions struct {
+	Name   string
+	Dir    string
+	Labels map[string]string
+	Argv   []string
+}
+
+// Terminal is a live terminal, as listed by hc.
+type Terminal struct {
+	Address string `json:"address"`
+	State   string `json:"state"`
+}
+
+// Start runs argv in a new terminal without a parent, removed once it exits,
+// and returns its address.
+func (c *Client) Start(ctx context.Context, o StartOptions) (string, error) {
+	args := []string{"run", "--bg", "--no-parent", "--rm", "--json", "--cwd", o.Dir}
+	if o.Name != "" {
+		args = append(args, "--name", o.Name)
+	}
+	args = append(args, labelArgs(o.Labels)...)
+	args = append(args, "--")
+	args = append(args, o.Argv...)
+	var res struct {
+		Address string `json:"address"`
+	}
+	if err := c.call(ctx, &res, args...); err != nil {
+		return "", err
+	}
+	if res.Address == "" {
+		return "", fmt.Errorf("hc run: no terminal address in the answer")
+	}
+	return res.Address, nil
+}
+
+// List returns the live terminals carrying all the given labels.
+func (c *Client) List(ctx context.Context, labels map[string]string) ([]Terminal, error) {
+	var res struct {
+		Terminals []Terminal `json:"terminals"`
+	}
+	if err := c.call(ctx, &res, append([]string{"ls", "--json"}, labelArgs(labels)...)...); err != nil {
+		return nil, err
+	}
+	return res.Terminals, nil
+}
+
+// Label sets labels on a terminal.
+func (c *Client) Label(ctx context.Context, address string, labels map[string]string) error {
+	args := []string{"label", "--json", address}
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		args = append(args, k+"="+labels[k])
+	}
+	return c.call(ctx, nil, args...)
+}
+
+func (c *Client) call(ctx context.Context, out any, args ...string) error {
+	data, err := c.Runner.Output(ctx, c.Bin, args...)
+	if err != nil {
+		return fmt.Errorf("hc %s: %w", args[0], err)
+	}
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("hc %s: unexpected answer %q: %w", args[0], data, err)
+	}
+	return nil
+}
+
+func labelArgs(labels map[string]string) []string {
+	var args []string
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		args = append(args, "--label", k+"="+labels[k])
+	}
+	return args
+}
+
+type execRunner struct{}
+
+func (execRunner) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("%w: %s", err, msg)
+		}
+		return nil, err
+	}
+	return out, nil
+}
