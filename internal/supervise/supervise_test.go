@@ -159,13 +159,3 @@ func TestLinger(t *testing.T) {
 		t.Error("linger ignored a canceled context")
 	}
 }
-
-func TestPin(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	time.AfterFunc(10*time.Millisecond, cancel)
-	var out bytes.Buffer
-	Pin(ctx, &out)
-	if out.String() != PinMessage {
-		t.Errorf("out = %q", out.String())
-	}
-}

@@ -127,6 +127,12 @@ func superviseCommand() *console.Command {
 	}
 }
 
+const pinMessage = `herdr-cron: do not close this tab.
+
+It keeps this space and its name: the Herdr app deletes a space when its last
+tab closes. Scheduled runs open as new tabs next to it.
+`
+
 func pinCommand() *console.Command {
 	return &console.Command{
 		Name:   "pin",
@@ -136,7 +142,8 @@ func pinCommand() *console.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGHUP)
 			defer stop()
 			signal.Notify(make(chan os.Signal, 1), os.Interrupt)
-			supervise.Pin(ctx, os.Stdout)
+			_, _ = terminal.Print(pinMessage)
+			<-ctx.Done()
 			return nil
 		},
 	}
