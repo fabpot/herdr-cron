@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"time"
 
@@ -95,7 +94,6 @@ func (l *Launcher) EnsurePin(ctx context.Context) error {
 		}
 	}
 	if !running {
-		labels = maps.Clone(labels)
 		labels["herdr.tab"] = "tb" + l.NewID()
 		// Stale pins wait for a later call: the app adopts a new tab some time
 		// after it starts, and killing them now would empty the space.
