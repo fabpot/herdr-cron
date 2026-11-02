@@ -2,7 +2,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -120,23 +119,17 @@ func Parse(data, home string) (Config, error) {
 		return Config{}, err
 	}
 
-	var errs []error
 	seen := map[string]bool{}
 	for i, fj := range f.Jobs {
 		job, err := validateJob(fj, home, keep)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("job #%d: %w", i+1, err))
-			continue
+			return Config{}, fmt.Errorf("job #%d: %w", i+1, err)
 		}
 		if seen[job.Name] {
-			errs = append(errs, fmt.Errorf("job #%d: name %q is already used", i+1, job.Name))
-			continue
+			return Config{}, fmt.Errorf("job #%d: name %q is already used", i+1, job.Name)
 		}
 		seen[job.Name] = true
 		cfg.Jobs = append(cfg.Jobs, job)
-	}
-	if err := errors.Join(errs...); err != nil {
-		return Config{}, err
 	}
 	return cfg, nil
 }
