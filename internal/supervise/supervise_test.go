@@ -105,25 +105,28 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestRunWithoutTerminal(t *testing.T) {
+func TestRunWithoutLabeler(t *testing.T) {
 	h := newHarness()
-	h.sup.Terminal = ""
-	if code := h.sup.Run(t.Context(), Options{Job: "a", Argv: []string{"true"}}); code != 0 {
+	h.sup.Labeler = nil
+	if code := h.sup.Run(t.Context(), Options{Job: "a", Keep: time.Hour, Argv: []string{"true"}}); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if h.labeler.labels != nil {
-		t.Error("labeled a terminal outside herdr-core")
+	if h.lingered != time.Hour {
+		t.Errorf("lingered %s, want 1h", h.lingered)
 	}
 }
 
 func TestRunReportsALabelingFailure(t *testing.T) {
 	h := newHarness()
 	h.labeler.err = errors.New("hc label: core unreachable")
-	if code := h.sup.Run(t.Context(), Options{Job: "a", Argv: []string{"true"}}); code != 0 {
+	if code := h.sup.Run(t.Context(), Options{Job: "a", Keep: time.Hour, Argv: []string{"true"}}); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
 	if !strings.Contains(h.stderr.String(), "core unreachable") {
 		t.Errorf("stderr = %q", h.stderr.String())
+	}
+	if h.lingered != time.Hour {
+		t.Errorf("lingered %s, want 1h", h.lingered)
 	}
 }
 
