@@ -45,7 +45,6 @@ type exitCoder interface{ ExitCode() int }
 // Terminal is a live terminal, as listed by hc. Only Get fills Argv.
 type Terminal struct {
 	Address string   `json:"address"`
-	State   string   `json:"state"`
 	Argv    []string `json:"argv"`
 }
 
@@ -102,11 +101,7 @@ func (c *Client) Kill(ctx context.Context, address string) error {
 
 // Label sets labels on a terminal.
 func (c *Client) Label(ctx context.Context, address string, labels map[string]string) error {
-	args := []string{"label", "--json", address}
-	for _, k := range slices.Sorted(maps.Keys(labels)) {
-		args = append(args, k+"="+labels[k])
-	}
-	return c.call(ctx, nil, args...)
+	return c.call(ctx, nil, append([]string{"label", "--json", address}, pairs(labels)...)...)
 }
 
 func (c *Client) call(ctx context.Context, out any, args ...string) error {
@@ -125,10 +120,18 @@ func (c *Client) call(ctx context.Context, out any, args ...string) error {
 
 func labelArgs(labels map[string]string) []string {
 	var args []string
-	for _, k := range slices.Sorted(maps.Keys(labels)) {
-		args = append(args, "--label", k+"="+labels[k])
+	for _, p := range pairs(labels) {
+		args = append(args, "--label", p)
 	}
 	return args
+}
+
+func pairs(labels map[string]string) []string {
+	var pairs []string
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		pairs = append(pairs, k+"="+labels[k])
+	}
+	return pairs
 }
 
 type execRunner struct{}
