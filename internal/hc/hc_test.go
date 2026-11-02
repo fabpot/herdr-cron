@@ -9,13 +9,13 @@ import (
 )
 
 type fakeRunner struct {
-	calls  [][]string
+	call   []string
 	output string
 	err    error
 }
 
 func (f *fakeRunner) Output(_ context.Context, name string, args ...string) ([]byte, error) {
-	f.calls = append(f.calls, append([]string{name}, args...))
+	f.call = append([]string{name}, args...)
 	return []byte(f.output), f.err
 }
 
@@ -35,8 +35,8 @@ func TestStart(t *testing.T) {
 		t.Errorf("address = %q, want t7", addr)
 	}
 	want := []string{"/bin/hc", "run", "--bg", "--no-parent", "--rm", "--json", "--cwd", "/src", "--name", "job-1", "--label", "a=1", "--label", "b=2", "--", "sh", "-c", "--label x"}
-	if !slices.Equal(r.calls[0], want) {
-		t.Errorf("call = %q\nwant  %q", r.calls[0], want)
+	if !slices.Equal(r.call, want) {
+		t.Errorf("call = %q\nwant  %q", r.call, want)
 	}
 }
 
@@ -50,8 +50,8 @@ func TestList(t *testing.T) {
 	if len(terms) != 1 || terms[0].Address != "t3" {
 		t.Errorf("terminals = %+v", terms)
 	}
-	if want := []string{"hc", "ls", "--json", "--label", "job=a"}; !slices.Equal(r.calls[0], want) {
-		t.Errorf("call = %q, want %q", r.calls[0], want)
+	if want := []string{"hc", "ls", "--json", "--label", "job=a"}; !slices.Equal(r.call, want) {
+		t.Errorf("call = %q, want %q", r.call, want)
 	}
 }
 
@@ -61,8 +61,8 @@ func TestLabel(t *testing.T) {
 	if err := c.Label(t.Context(), "t3", map[string]string{"state": "done", "exit": "0"}); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"hc", "label", "--json", "t3", "exit=0", "state=done"}; !slices.Equal(r.calls[0], want) {
-		t.Errorf("call = %q, want %q", r.calls[0], want)
+	if want := []string{"hc", "label", "--json", "t3", "exit=0", "state=done"}; !slices.Equal(r.call, want) {
+		t.Errorf("call = %q, want %q", r.call, want)
 	}
 }
 
@@ -76,8 +76,8 @@ func TestGet(t *testing.T) {
 	if term.Address != "t3" || !slices.Equal(term.Argv, []string{"/usr/bin/fish"}) {
 		t.Errorf("terminal = %+v", term)
 	}
-	if want := []string{"hc", "get", "--json", "t3"}; !slices.Equal(r.calls[0], want) {
-		t.Errorf("call = %q, want %q", r.calls[0], want)
+	if want := []string{"hc", "get", "--json", "t3"}; !slices.Equal(r.call, want) {
+		t.Errorf("call = %q, want %q", r.call, want)
 	}
 }
 
