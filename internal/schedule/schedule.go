@@ -138,8 +138,14 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(running) > 0 {
-		return "", fmt.Errorf("%s: %w in %s", job.Name, ErrRunning, running[0].Address)
+	for _, r := range running {
+		t, err := l.Terminals.Get(ctx, r.Address)
+		if err != nil {
+			return "", err
+		}
+		if len(t.Argv) > 1 && t.Argv[1] == "supervise" {
+			return "", fmt.Errorf("%s: %w in %s", job.Name, ErrRunning, r.Address)
+		}
 	}
 
 	return l.Terminals.Start(ctx, hc.StartOptions{

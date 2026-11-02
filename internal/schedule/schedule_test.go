@@ -69,8 +69,8 @@ func pinTab(addr, space string, argv ...string) fakeTerminal {
 	return fakeTerminal{hc.Terminal{Address: addr, Argv: argv}, map[string]string{LabelPin: "true", "herdr.space": space}}
 }
 
-func runTab(addr, job, state string) fakeTerminal {
-	return fakeTerminal{hc.Terminal{Address: addr}, map[string]string{LabelJob: job, LabelState: state}}
+func runTab(addr, job, state string, argv ...string) fakeTerminal {
+	return fakeTerminal{hc.Terminal{Address: addr, Argv: argv}, map[string]string{LabelJob: job, LabelState: state}}
 }
 
 func newTestLauncher(t *testing.T, terms Terminals) *Launcher {
@@ -125,16 +125,19 @@ func TestLaunchSkipsARunningJob(t *testing.T) {
 		pinTab("t1", space, pinArgv...),
 		runTab("t2", "other", StateWorking),
 		runTab("t3", "review", StateDone),
+		runTab("t4", "review", StateWorking, "/usr/bin/fish"),
 	}}
 	l := newTestLauncher(t, terms)
 	if _, err := l.Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
+	l.Supervisor[0] = "/new/bin/herdr-cron"
+	l.Supervisor[3] = "/new/bin/hc"
 	if _, err := l.Launch(t.Context(), job); !errors.Is(err, ErrRunning) {
 		t.Errorf("err = %v, want ErrRunning", err)
 	}
-	if len(terms.started) != 1 {
-		t.Errorf("started %d runs, want 1", len(terms.started))
+	if want := []string{"start"}; !slices.Equal(terms.ops, want) {
+		t.Errorf("ops = %q, want %q", terms.ops, want)
 	}
 }
 
