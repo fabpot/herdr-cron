@@ -11,7 +11,6 @@ import (
 
 	"github.com/fabpot/herdr-cron/internal/config"
 	"github.com/fabpot/herdr-cron/internal/hc"
-	"github.com/rs/zerolog"
 )
 
 type fakeTerminal struct {
@@ -187,15 +186,5 @@ func TestLaunchKillsADuplicatePin(t *testing.T) {
 	}
 	if want := []string{"kill t2", "start"}; !slices.Equal(terms.ops, want) {
 		t.Errorf("ops = %q, want %q", terms.ops, want)
-	}
-}
-
-func TestServeStartsThePin(t *testing.T) {
-	terms := &fakeTerminals{}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	Serve(ctx, nil, newTestLauncher(terms), zerolog.Nop())
-	if len(terms.started) != 1 || terms.started[0].Labels[LabelPin] != "true" {
-		t.Errorf("started %+v, want the pin", terms.started)
 	}
 }

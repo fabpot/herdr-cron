@@ -151,9 +151,6 @@ func Serve(ctx context.Context, jobs []config.Job, l *Launcher, log zerolog.Logg
 			log.Info().Str("job", job.Name).Str("terminal", addr).Msg("run started")
 		}))
 	}
-	if err := l.EnsurePin(ctx); err != nil {
-		log.Error().Err(err).Msg("pinned tab not started")
-	}
 	c.Start()
 	log.Info().Int("jobs", len(jobs)).Msg("scheduler started")
 	<-ctx.Done()
