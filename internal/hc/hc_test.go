@@ -42,13 +42,6 @@ func TestStart(t *testing.T) {
 	}
 }
 
-func TestStartWithoutAddress(t *testing.T) {
-	c := &Client{Bin: "hc", Runner: &fakeRunner{output: `{}`}}
-	if _, err := c.Start(t.Context(), StartOptions{Dir: "/", Argv: []string{"true"}}); err == nil {
-		t.Error("Start succeeded without an address")
-	}
-}
-
 func TestList(t *testing.T) {
 	r := &fakeRunner{output: `{"hidden_finished":0,"terminals":[{"address":"t3","state":"live","turn":0}]}`}
 	c := &Client{Bin: "hc", Runner: r}

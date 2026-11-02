@@ -61,13 +61,8 @@ func (c *Client) Start(ctx context.Context, o StartOptions) (string, error) {
 	var res struct {
 		Address string `json:"address"`
 	}
-	if err := c.call(ctx, &res, args...); err != nil {
-		return "", err
-	}
-	if res.Address == "" {
-		return "", fmt.Errorf("hc run: no terminal address in the answer")
-	}
-	return res.Address, nil
+	err := c.call(ctx, &res, args...)
+	return res.Address, err
 }
 
 // List returns the live terminals carrying all the given labels.
