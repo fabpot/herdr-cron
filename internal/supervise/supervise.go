@@ -18,11 +18,11 @@ import (
 	"github.com/fabpot/herdr-cron/internal/schedule"
 )
 
-// App identifies herdr-cron in program status reports.
-const App = "herdr-cron"
+// app identifies herdr-cron in program status reports.
+const app = "herdr-cron"
 
-// ExitNotStarted is the exit code when the command cannot be started.
-const ExitNotStarted = 127
+// exitNotStarted is the exit code when the command cannot be started.
+const exitNotStarted = 127
 
 // Labeler sets labels on a terminal.
 type Labeler interface {
@@ -98,7 +98,7 @@ func (s *Supervisor) exec(ctx context.Context, argv []string) int {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.Stdin, s.Stdout, s.Stderr
 	if err := cmd.Start(); err != nil {
 		_, _ = fmt.Fprintf(s.Stderr, "herdr-cron: %v\n", err)
-		return ExitNotStarted
+		return exitNotStarted
 	}
 
 	err := cmd.Wait()
@@ -114,7 +114,7 @@ func (s *Supervisor) exec(ctx context.Context, argv []string) int {
 
 func (s *Supervisor) report(state, title, msg string) {
 	var b strings.Builder
-	b.WriteString("\x1b]7501;state=" + state + ":app=" + App)
+	b.WriteString("\x1b]7501;state=" + state + ":app=" + app)
 	b.WriteString(":title=" + base64.StdEncoding.EncodeToString([]byte(title)))
 	if msg != "" {
 		b.WriteString(":msg=" + base64.StdEncoding.EncodeToString([]byte(msg)))

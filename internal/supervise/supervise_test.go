@@ -72,7 +72,7 @@ func TestRun(t *testing.T) {
 		{"success", []string{"sh", "-c", "echo hello"}, 0, schedule.StateDone, "exit 0 after 1m0s", "hello\n", ""},
 		{"failure", []string{"sh", "-c", "echo oops >&2; exit 3"}, 3, schedule.StateError, "exit 3 after 1m0s", "", "oops\n"},
 		{"signaled", []string{"sh", "-c", "kill -TERM $$"}, 143, schedule.StateError, "exit 143 after 1m0s", "", ""},
-		{"not found", []string{"/nonexistent/program"}, ExitNotStarted, schedule.StateError, "exit 127 after 1m0s", "", "/nonexistent/program"},
+		{"not found", []string{"/nonexistent/program"}, exitNotStarted, schedule.StateError, "exit 127 after 1m0s", "", "/nonexistent/program"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
