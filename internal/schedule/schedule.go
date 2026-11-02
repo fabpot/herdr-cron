@@ -124,7 +124,6 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 		return "", fmt.Errorf("%s: %w in %s", job.Name, ErrRunning, running[0].Address)
 	}
 
-	argv := append(append([]string{}, l.Supervisor...), "--job", job.Name, "--keep", job.Keep.String(), "--")
 	return l.Terminals.Start(ctx, hc.StartOptions{
 		Name: job.Name + "-" + l.Now().Format("0102-150405"),
 		Dir:  job.Dir,
@@ -135,7 +134,7 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 			LabelJob:      job.Name,
 			LabelState:    StateWorking,
 		},
-		Argv: append(argv, job.Command...),
+		Argv: slices.Concat(l.Supervisor, []string{"--job", job.Name, "--keep", job.Keep.String(), "--"}, job.Command),
 	})
 }
 
