@@ -93,24 +93,15 @@ func (s *Supervisor) Run(ctx context.Context, o Options) int {
 }
 
 func (s *Supervisor) exec(ctx context.Context, argv []string) int {
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.Stdin, s.Stdout, s.Stderr
 	if err := cmd.Start(); err != nil {
 		_, _ = fmt.Fprintf(s.Stderr, "herdr-cron: %v\n", err)
 		return ExitNotStarted
 	}
 
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = cmd.Process.Signal(syscall.SIGTERM)
-		case <-done:
-		}
-	}()
 	err := cmd.Wait()
-	close(done)
-
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
 		return 0
