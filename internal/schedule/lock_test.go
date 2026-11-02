@@ -8,8 +8,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
+	"github.com/fabpot/herdr-cron/internal/config"
 	"github.com/fabpot/herdr-cron/internal/hc"
 )
 
@@ -24,19 +26,20 @@ func (f *pausingTerminals) Start(ctx context.Context, o hc.StartOptions) (string
 }
 
 func TestLaunchSerializesProcesses(t *testing.T) {
-	if dir := os.Getenv("HERDR_CRON_TEST_LOCK_DIR"); dir != "" {
-		l := newTestLauncher(t, &pausingTerminals{})
-		l.LockDir = dir
+	if home := os.Getenv("HERDR_CRON_TEST_HOME"); home != "" {
+		l := NewLauncher(config.Config{Space: space}, &pausingTerminals{}, "/usr/bin/herdr-cron", "/usr/bin/hc", home)
 		if _, err := l.Launch(t.Context(), job); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
 
+	home := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "shell-cache"))
 	terms := &fakeTerminals{}
-	l := newTestLauncher(t, terms)
+	l := NewLauncher(config.Config{Space: space}, terms, "/usr/bin/herdr-cron", "/usr/bin/hc", home)
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestLaunchSerializesProcesses$")
-	cmd.Env = append(os.Environ(), "HERDR_CRON_TEST_LOCK_DIR="+l.LockDir)
+	cmd.Env = append(os.Environ(), "HERDR_CRON_TEST_HOME="+home, "XDG_CACHE_HOME="+filepath.Join(home, "service-cache"))
 	cmd.Stderr = os.Stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {

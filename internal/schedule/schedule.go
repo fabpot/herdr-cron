@@ -59,11 +59,7 @@ type Launcher struct {
 
 // NewLauncher wires a launcher for the configuration; self is the
 // herdr-cron executable, hcBin the hc one.
-func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home string) (*Launcher, error) {
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return nil, err
-	}
+func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home string) *Launcher {
 	return &Launcher{
 		Terminals:  terminals,
 		Space:      cfg.Space,
@@ -72,8 +68,8 @@ func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home strin
 		PinDir:     home,
 		Now:        time.Now,
 		NewID:      randomID,
-		LockDir:    filepath.Join(cache, "herdr-cron"),
-	}, nil
+		LockDir:    filepath.Join(home, ".cache", "herdr-cron"),
+	}
 }
 
 // EnsurePin starts the space's pinned tab unless it is running. The app

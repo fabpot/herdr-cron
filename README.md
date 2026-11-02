@@ -48,8 +48,8 @@ keep = "2h"
   global `keep`.
 
 A job is skipped while another run is starting or still running, including
-runs started by hand. Launches coordinate through per-job locks in the user
-cache directory (`~/.cache/herdr-cron` by default).
+runs started by hand. Launches coordinate through per-job locks in
+`~/.cache/herdr-cron`, independent of `XDG_CACHE_HOME`.
 
 ## Run
 

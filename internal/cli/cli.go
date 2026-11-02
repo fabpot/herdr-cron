@@ -173,6 +173,5 @@ func setup(c *console.Context) (config.Config, *schedule.Launcher, error) {
 	if err != nil {
 		return config.Config{}, nil, err
 	}
-	launcher, err := schedule.NewLauncher(cfg, hc.New(bin), self, bin, home)
-	return cfg, launcher, err
+	return cfg, schedule.NewLauncher(cfg, hc.New(bin), self, bin, home), nil
 }
