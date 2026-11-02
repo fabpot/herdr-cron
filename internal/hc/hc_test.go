@@ -41,7 +41,7 @@ func TestStart(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	r := &fakeRunner{output: `{"hidden_finished":0,"terminals":[{"address":"t3","state":"live","turn":0}]}`}
+	r := &fakeRunner{output: `{"hidden_finished":0,"terminals":[{"address":"peer/t3","state":"live"},{"address":"t3","state":"live","turn":0},{"address":"other/t4","state":"live"}]}`}
 	c := &Client{Bin: "hc", Runner: r}
 	terms, err := c.List(t.Context(), map[string]string{"job": "a"})
 	if err != nil {

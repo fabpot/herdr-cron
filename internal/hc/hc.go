@@ -65,7 +65,7 @@ func (c *Client) Start(ctx context.Context, o StartOptions) (string, error) {
 	return res.Address, err
 }
 
-// List returns the live terminals carrying all the given labels.
+// List returns the live local terminals carrying all the given labels.
 func (c *Client) List(ctx context.Context, labels map[string]string) ([]Terminal, error) {
 	var res struct {
 		Terminals []Terminal `json:"terminals"`
@@ -73,7 +73,7 @@ func (c *Client) List(ctx context.Context, labels map[string]string) ([]Terminal
 	if err := c.call(ctx, &res, append([]string{"ls", "--json"}, labelArgs(labels)...)...); err != nil {
 		return nil, err
 	}
-	return res.Terminals, nil
+	return slices.DeleteFunc(res.Terminals, func(t Terminal) bool { return strings.Contains(t.Address, "/") }), nil
 }
 
 // Get returns a terminal with the argv of its program.
