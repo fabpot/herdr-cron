@@ -65,15 +65,14 @@ func TestRun(t *testing.T) {
 		argv     []string
 		code     int
 		state    string
-		label    string
 		outcome  string
 		inStdout string
 		inStderr string
 	}{
-		{"success", []string{"sh", "-c", "echo hello"}, 0, "done", schedule.StateDone, "exit 0 after 1m0s", "hello\n", ""},
-		{"failure", []string{"sh", "-c", "echo oops >&2; exit 3"}, 3, "error", schedule.StateFailed, "exit 3 after 1m0s", "", "oops\n"},
-		{"signaled", []string{"sh", "-c", "kill -TERM $$"}, 143, "error", schedule.StateFailed, "exit 143 after 1m0s", "", ""},
-		{"not found", []string{"/nonexistent/program"}, ExitNotStarted, "error", schedule.StateFailed, "exit 127 after 1m0s", "", "/nonexistent/program"},
+		{"success", []string{"sh", "-c", "echo hello"}, 0, schedule.StateDone, "exit 0 after 1m0s", "hello\n", ""},
+		{"failure", []string{"sh", "-c", "echo oops >&2; exit 3"}, 3, schedule.StateError, "exit 3 after 1m0s", "", "oops\n"},
+		{"signaled", []string{"sh", "-c", "kill -TERM $$"}, 143, schedule.StateError, "exit 143 after 1m0s", "", ""},
+		{"not found", []string{"/nonexistent/program"}, ExitNotStarted, schedule.StateError, "exit 127 after 1m0s", "", "/nonexistent/program"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,7 +95,7 @@ func TestRun(t *testing.T) {
 			if !strings.Contains(out, "review: "+tt.outcome+"; this tab closes on Mon Nov 2 05:03") {
 				t.Errorf("stdout lacks the summary: %q", out)
 			}
-			wantLabels := map[string]string{schedule.LabelState: tt.label, schedule.LabelExit: strconv.Itoa(tt.code)}
+			wantLabels := map[string]string{schedule.LabelState: tt.state, schedule.LabelExit: strconv.Itoa(tt.code)}
 			if h.labeler.address != "t9" || !maps.Equal(h.labeler.labels, wantLabels) {
 				t.Errorf("labeled %s with %v, want t9 with %v", h.labeler.address, h.labeler.labels, wantLabels)
 			}

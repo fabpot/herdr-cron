@@ -24,9 +24,9 @@ const (
 	LabelExit  = "herdr-cron.exit"
 	LabelPin   = "herdr-cron.pin"
 
-	StateRunning = "running"
+	StateWorking = "working"
 	StateDone    = "done"
-	StateFailed  = "failed"
+	StateError   = "error"
 )
 
 // ErrRunning is returned when the previous run of a job is still running.
@@ -116,7 +116,7 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 	if err := l.EnsurePin(ctx); err != nil {
 		return "", err
 	}
-	running, err := l.Terminals.List(ctx, map[string]string{LabelJob: job.Name, LabelState: StateRunning})
+	running, err := l.Terminals.List(ctx, map[string]string{LabelJob: job.Name, LabelState: StateWorking})
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +133,7 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 			"herdr.space": l.Space,
 			"herdr.tab":   "tb" + l.NewID(),
 			LabelJob:      job.Name,
-			LabelState:    StateRunning,
+			LabelState:    StateWorking,
 		},
 		Argv: append(argv, job.Command...),
 	})

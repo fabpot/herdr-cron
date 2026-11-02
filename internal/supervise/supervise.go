@@ -66,23 +66,23 @@ type Options struct {
 // over. Canceling ctx stops the command and returns at once.
 func (s *Supervisor) Run(ctx context.Context, o Options) int {
 	started := s.Now()
-	s.report("working", o.Job, "")
+	s.report(schedule.StateWorking, o.Job, "")
 
 	code := s.exec(ctx, o.Argv)
 	if ctx.Err() != nil {
 		return code
 	}
 
-	state, label := "done", schedule.StateDone
+	state := schedule.StateDone
 	if code != 0 {
-		state, label = "error", schedule.StateFailed
+		state = schedule.StateError
 	}
 	outcome := fmt.Sprintf("exit %d after %s", code, s.Now().Sub(started).Round(time.Second))
 	// Drop the records the command reported so they do not outlive it.
 	_, _ = io.WriteString(s.Stdout, "\x1b]7501;state=clear\x1b\\")
 	s.report(state, o.Job, outcome)
 	if s.Labeler != nil && s.Terminal != "" {
-		if err := s.Labeler.Label(ctx, s.Terminal, map[string]string{schedule.LabelState: label, schedule.LabelExit: strconv.Itoa(code)}); err != nil {
+		if err := s.Labeler.Label(ctx, s.Terminal, map[string]string{schedule.LabelState: state, schedule.LabelExit: strconv.Itoa(code)}); err != nil {
 			_, _ = fmt.Fprintf(s.Stderr, "herdr-cron: %v\n", err)
 		}
 	}

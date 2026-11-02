@@ -74,7 +74,7 @@ func TestLaunch(t *testing.T) {
 	if addr != "t9" {
 		t.Errorf("address = %q, want t9", addr)
 	}
-	if want := map[string]string{LabelJob: "review", LabelState: StateRunning}; !maps.Equal(terms.listed[1], want) {
+	if want := map[string]string{LabelJob: "review", LabelState: StateWorking}; !maps.Equal(terms.listed[1], want) {
 		t.Errorf("overlap check listed %v, want %v", terms.listed[1], want)
 	}
 	if len(terms.started) != 1 {
@@ -88,7 +88,7 @@ func TestLaunch(t *testing.T) {
 		"herdr.space": "sp00000000000000000000000000000001",
 		"herdr.tab":   "tb0123",
 		LabelJob:      "review",
-		LabelState:    StateRunning,
+		LabelState:    StateWorking,
 	}
 	if !maps.Equal(got.Labels, wantLabels) {
 		t.Errorf("labels = %v, want %v", got.Labels, wantLabels)
