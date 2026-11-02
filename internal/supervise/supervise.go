@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"time"
 
@@ -112,14 +111,11 @@ func (s *Supervisor) exec(ctx context.Context, argv []string) int {
 }
 
 func (s *Supervisor) report(state, title, msg string) {
-	var b strings.Builder
-	b.WriteString("\x1b]7501;state=" + state + ":app=" + app)
-	b.WriteString(":title=" + base64.StdEncoding.EncodeToString([]byte(title)))
+	seq := "\x1b]7501;state=" + state + ":app=" + app + ":title=" + base64.StdEncoding.EncodeToString([]byte(title))
 	if msg != "" {
-		b.WriteString(":msg=" + base64.StdEncoding.EncodeToString([]byte(msg)))
+		seq += ":msg=" + base64.StdEncoding.EncodeToString([]byte(msg))
 	}
-	b.WriteString("\x1b\\")
-	_, _ = io.WriteString(s.Stdout, b.String())
+	_, _ = io.WriteString(s.Stdout, seq+"\x1b\\")
 }
 
 func linger(ctx context.Context, d time.Duration) {
