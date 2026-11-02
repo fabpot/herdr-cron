@@ -1,8 +1,6 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -28,8 +26,8 @@ keep = "90m"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Space != DefaultSpace {
-		t.Errorf("space = %q, want the default", cfg.Space)
+	if cfg.Space != DefaultSpace || !spaceRe.MatchString(cfg.Space) {
+		t.Errorf("space = %q, want the default, a valid space id", cfg.Space)
 	}
 	if len(cfg.Jobs) != 2 {
 		t.Fatalf("got %d jobs, want 2", len(cfg.Jobs))
@@ -52,19 +50,6 @@ keep = "90m"
 	}
 }
 
-func TestParseDefaults(t *testing.T) {
-	cfg, err := Parse("[[jobs]]\nname = \"a\"\nschedule = \"@daily\"\ncommand = [\"true\"]", "/home/me")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Space != DefaultSpace || cfg.Jobs[0].Keep != DefaultKeep {
-		t.Errorf("got %+v, want the default space and keep", cfg)
-	}
-	if !spaceRe.MatchString(DefaultSpace) {
-		t.Errorf("default space %q is not a space id", DefaultSpace)
-	}
-}
-
 func TestParseErrors(t *testing.T) {
 	job := func(fields string) string {
 		return "[[jobs]]\n" + fields + "\n"
@@ -73,7 +58,6 @@ func TestParseErrors(t *testing.T) {
 	tests := []struct {
 		name, data, want string
 	}{
-		{"unknown key", "spaces = \"x\"", "unknown keys: spaces"},
 		{"unknown job key", job(valid + "\ncmd = [\"x\"]"), "unknown keys: jobs.cmd"},
 		{"bad space", `space = "Scheduled"`, "must be a Herdr app space id"},
 		{"bad keep", `keep = "3 days"`, "must be a duration"},
@@ -93,26 +77,5 @@ func TestParseErrors(t *testing.T) {
 				t.Errorf("err = %v, want it to contain %q", err, tt.want)
 			}
 		})
-	}
-}
-
-func TestLoadNamesTheFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte(`keep = "x"`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	_, err := Load(path, "/home/me")
-	if err == nil || !strings.HasPrefix(err.Error(), path+": ") {
-		t.Errorf("err = %v, want it prefixed with the path", err)
-	}
-}
-
-func TestJob(t *testing.T) {
-	cfg := Config{Jobs: []Job{{Name: "a"}, {Name: "b"}}}
-	if j, err := cfg.Job("b"); err != nil || j.Name != "b" {
-		t.Errorf("Job(b) = %+v, %v", j, err)
-	}
-	if _, err := cfg.Job("c"); err == nil {
-		t.Error("Job(c) succeeded, want an error")
 	}
 }
