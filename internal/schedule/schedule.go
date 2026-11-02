@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/fabpot/herdr-cron/internal/hc"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog"
+	"golang.org/x/sys/unix"
 )
 
 // Labels set on every run terminal.
@@ -27,8 +30,8 @@ const (
 	StateError   = "error"
 )
 
-// ErrRunning is returned when the previous run of a job is still running.
-var ErrRunning = errors.New("the previous run is still running")
+// ErrRunning is returned when another run of a job is starting or still running.
+var ErrRunning = errors.New("another run is starting or still running")
 
 // Terminals is what the launcher needs from herdr-core.
 type Terminals interface {
@@ -47,15 +50,20 @@ type Launcher struct {
 	// keep duration and command are appended.
 	Supervisor []string
 	// Pin is the argv of the program holding the space's pinned tab.
-	Pin    []string
-	PinDir string
-	Now    func() time.Time
-	NewID  func() string
+	Pin     []string
+	PinDir  string
+	Now     func() time.Time
+	NewID   func() string
+	LockDir string
 }
 
 // NewLauncher wires a launcher for the configuration; self is the
 // herdr-cron executable, hcBin the hc one.
-func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home string) *Launcher {
+func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home string) (*Launcher, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, err
+	}
 	return &Launcher{
 		Terminals:  terminals,
 		Space:      cfg.Space,
@@ -64,7 +72,8 @@ func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home strin
 		PinDir:     home,
 		Now:        time.Now,
 		NewID:      randomID,
-	}
+		LockDir:    filepath.Join(cache, "herdr-cron"),
+	}, nil
 }
 
 // EnsurePin starts the space's pinned tab unless it is running. The app
@@ -108,8 +117,24 @@ func (l *Launcher) EnsurePin(ctx context.Context) error {
 }
 
 // Launch starts a run of the job, after the space's pinned tab, and returns
-// its terminal address, or ErrRunning when its previous run has not finished.
+// its terminal address, or ErrRunning when another run is starting or still running.
 func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
+	if err := os.MkdirAll(l.LockDir, 0o700); err != nil {
+		return "", err
+	}
+	// Keep the file so concurrent launches always lock the same inode.
+	lock, err := os.OpenFile(filepath.Join(l.LockDir, job.Name+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = lock.Close() }()
+	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		if errors.Is(err, unix.EWOULDBLOCK) {
+			return "", fmt.Errorf("%s: %w", job.Name, ErrRunning)
+		}
+		return "", fmt.Errorf("lock job %s: %w", job.Name, err)
+	}
+
 	if err := l.EnsurePin(ctx); err != nil {
 		return "", err
 	}

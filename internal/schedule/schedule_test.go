@@ -73,15 +73,17 @@ func runTab(addr, job, state string) fakeTerminal {
 	return fakeTerminal{hc.Terminal{Address: addr}, map[string]string{LabelJob: job, LabelState: state}}
 }
 
-func newTestLauncher(terms *fakeTerminals) *Launcher {
+func newTestLauncher(t *testing.T, terms Terminals) *Launcher {
+	t.Helper()
 	return &Launcher{
 		Terminals:  terms,
 		Space:      space,
 		Supervisor: []string{"/usr/bin/herdr-cron", "supervise", "--hc", "/usr/bin/hc"},
-		Pin:        []string{"/usr/bin/herdr-cron", "pin"},
+		Pin:        pinArgv,
 		PinDir:     "/home/me",
 		Now:        func() time.Time { return time.Date(2026, 11, 2, 3, 0, 5, 0, time.UTC) },
 		NewID:      func() string { return "0123" },
+		LockDir:    t.TempDir(),
 	}
 }
 
@@ -89,7 +91,7 @@ var job = config.Job{Name: "review", Dir: "/src/app", Command: []string{"void", 
 
 func TestLaunch(t *testing.T) {
 	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", space, pinArgv...)}}
-	addr, err := newTestLauncher(terms).Launch(t.Context(), job)
+	addr, err := newTestLauncher(t, terms).Launch(t.Context(), job)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +126,7 @@ func TestLaunchSkipsARunningJob(t *testing.T) {
 		runTab("t2", "other", StateWorking),
 		runTab("t3", "review", StateDone),
 	}}
-	l := newTestLauncher(terms)
+	l := newTestLauncher(t, terms)
 	if _, err := l.Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +140,7 @@ func TestLaunchSkipsARunningJob(t *testing.T) {
 
 func TestLaunchStartsTheMissingPinFirst(t *testing.T) {
 	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", "sp00000000000000000000000000000002", pinArgv...)}}
-	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+	if _, err := newTestLauncher(t, terms).Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
 	if len(terms.started) != 2 {
@@ -157,7 +159,7 @@ func TestLaunchStartsTheMissingPinFirst(t *testing.T) {
 func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
 	// herdr-core gives a kept terminal a shell when it restarts.
 	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t2", space, "/usr/bin/fish")}}
-	l := newTestLauncher(terms)
+	l := newTestLauncher(t, terms)
 	if _, err := l.Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +183,7 @@ func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
 
 func TestLaunchKillsADuplicatePin(t *testing.T) {
 	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", space, pinArgv...), pinTab("t2", space, pinArgv...)}}
-	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+	if _, err := newTestLauncher(t, terms).Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"kill t2", "start"}; !slices.Equal(terms.ops, want) {

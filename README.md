@@ -47,7 +47,9 @@ keep = "2h"
 * `keep`: how long this job's finished runs stay visible, overriding the
   global `keep`.
 
-A job is skipped while its previous run is still running.
+A job is skipped while another run is starting or still running, including
+runs started by hand. Launches coordinate through per-job locks in the user
+cache directory (`~/.cache/herdr-cron` by default).
 
 ## Run
 
