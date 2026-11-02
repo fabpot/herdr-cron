@@ -2,8 +2,6 @@
 package config
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -18,10 +16,7 @@ import (
 
 // DefaultSpace is the Herdr app space runs land in when none is configured.
 // The app creates it on the first run; naming it in the app keeps the name.
-var DefaultSpace = func() string {
-	sum := sha256.Sum256([]byte("herdr-cron"))
-	return "sp" + hex.EncodeToString(sum[:])[:32]
-}()
+const DefaultSpace = "sp7ec9c6c3a3d77a70c0a7dc6169e694fe"
 
 // DefaultKeep is how long a finished run stays visible.
 const DefaultKeep = 72 * time.Hour
