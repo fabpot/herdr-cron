@@ -154,6 +154,18 @@ func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
 	}
 }
 
+func TestLaunchKillsADuplicatePin(t *testing.T) {
+	duplicate := pin
+	duplicate.Address = "t2"
+	terms := &fakeTerminals{pinned: []hc.Terminal{pin, duplicate}}
+	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kill t2", "start"}; !slices.Equal(terms.ops, want) {
+		t.Errorf("ops = %q, want %q", terms.ops, want)
+	}
+}
+
 func TestServeStartsThePin(t *testing.T) {
 	terms := &fakeTerminals{}
 	ctx, cancel := context.WithCancel(t.Context())

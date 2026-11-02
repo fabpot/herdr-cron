@@ -73,7 +73,8 @@ func NewLauncher(cfg config.Config, terminals Terminals, self, hcBin, home strin
 // deletes a space, name included, when its last tab closes: the pinned tab
 // keeps it. A pinned tab no longer running the pin program, like a kept
 // terminal herdr-core gave a shell when it restarted, is replaced: a new pin
-// starts first, and the stale one is killed by the next call.
+// starts first, and the stale one is killed by the next call. Extra pins,
+// started by concurrent launches, are killed too.
 func (l *Launcher) EnsurePin(ctx context.Context) error {
 	labels := map[string]string{LabelPin: "true", "herdr.space": l.Space}
 	pins, err := l.Terminals.List(ctx, labels)
@@ -87,7 +88,7 @@ func (l *Launcher) EnsurePin(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if slices.Equal(t.Argv, l.Pin) {
+		if !running && slices.Equal(t.Argv, l.Pin) {
 			running = true
 		} else {
 			stale = append(stale, p.Address)
