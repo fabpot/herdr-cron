@@ -140,19 +140,17 @@ func (l *Launcher) Launch(ctx context.Context, job config.Job) (string, error) {
 }
 
 // Serve launches every job on its schedule until ctx is done.
-func Serve(ctx context.Context, jobs []config.Job, l *Launcher, log zerolog.Logger) error {
+func Serve(ctx context.Context, jobs []config.Job, l *Launcher, log zerolog.Logger) {
 	c := cron.New()
 	for _, job := range jobs {
-		if _, err := c.AddFunc(job.Schedule, func() {
+		c.Schedule(job.Schedule, cron.FuncJob(func() {
 			addr, err := l.Launch(ctx, job)
 			if err != nil {
 				log.Error().Err(err).Str("job", job.Name).Msg("run not started")
 				return
 			}
 			log.Info().Str("job", job.Name).Str("terminal", addr).Msg("run started")
-		}); err != nil {
-			return fmt.Errorf("%s: %w", job.Name, err)
-		}
+		}))
 	}
 	if err := l.EnsurePin(ctx); err != nil {
 		log.Error().Err(err).Msg("pinned tab not started")
@@ -161,7 +159,6 @@ func Serve(ctx context.Context, jobs []config.Job, l *Launcher, log zerolog.Logg
 	log.Info().Int("jobs", len(jobs)).Msg("scheduler started")
 	<-ctx.Done()
 	<-c.Stop().Done()
-	return nil
 }
 
 func randomID() string {

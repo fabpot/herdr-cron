@@ -44,7 +44,7 @@ type Config struct {
 // Job is one scheduled command.
 type Job struct {
 	Name     string
-	Schedule string
+	Schedule cron.Schedule
 	Dir      string
 	Command  []string
 	// Keep is how long a finished run stays visible.
@@ -150,7 +150,8 @@ func validateJob(fj fileJob, home string, defaultKeep time.Duration) (Job, error
 	if !nameRe.MatchString(fj.Name) || len(fj.Name) > MaxNameLength {
 		return Job{}, fmt.Errorf("name %q must be 1 to %d characters among a-z, 0-9, \"-\" and \"_\", starting with a letter or digit", fj.Name, MaxNameLength)
 	}
-	if _, err := cron.ParseStandard(fj.Schedule); err != nil {
+	schedule, err := cron.ParseStandard(fj.Schedule)
+	if err != nil {
 		return Job{}, fmt.Errorf("%s: schedule %q: %w", fj.Name, fj.Schedule, err)
 	}
 	if len(fj.Command) == 0 || fj.Command[0] == "" {
@@ -170,7 +171,7 @@ func validateJob(fj fileJob, home string, defaultKeep time.Duration) (Job, error
 	if err != nil {
 		return Job{}, fmt.Errorf("%s: %w", fj.Name, err)
 	}
-	return Job{Name: fj.Name, Schedule: fj.Schedule, Dir: dir, Command: fj.Command, Keep: keep}, nil
+	return Job{Name: fj.Name, Schedule: schedule, Dir: dir, Command: fj.Command, Keep: keep}, nil
 }
 
 func parseKeep(value string, fallback time.Duration) (time.Duration, error) {

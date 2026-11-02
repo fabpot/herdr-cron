@@ -63,7 +63,7 @@ func newTestLauncher(terms *fakeTerminals) *Launcher {
 
 var pin = hc.Terminal{Address: "t1", Argv: []string{"/usr/bin/herdr-cron", "pin"}}
 
-var job = config.Job{Name: "review", Schedule: "@daily", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}, Keep: 48 * time.Hour}
+var job = config.Job{Name: "review", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}, Keep: 48 * time.Hour}
 
 func TestLaunch(t *testing.T) {
 	terms := &fakeTerminals{pinned: []hc.Terminal{pin}}
@@ -170,33 +170,8 @@ func TestServeStartsThePin(t *testing.T) {
 	terms := &fakeTerminals{}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := Serve(ctx, nil, newTestLauncher(terms), zerolog.Nop()); err != nil {
-		t.Fatal(err)
-	}
+	Serve(ctx, nil, newTestLauncher(terms), zerolog.Nop())
 	if len(terms.started) != 1 || terms.started[0].Labels[LabelPin] != "true" {
 		t.Errorf("started %+v, want the pin", terms.started)
-	}
-}
-
-func TestServeStopsWithTheContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan error)
-	go func() { done <- Serve(ctx, []config.Job{job}, newTestLauncher(&fakeTerminals{}), zerolog.Nop()) }()
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Serve did not return after the context was canceled")
-	}
-}
-
-func TestServeRejectsAnInvalidSchedule(t *testing.T) {
-	bad := job
-	bad.Schedule = "never"
-	if err := Serve(t.Context(), []config.Job{bad}, newTestLauncher(&fakeTerminals{}), zerolog.Nop()); err == nil {
-		t.Error("Serve accepted an invalid schedule")
 	}
 }

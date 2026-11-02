@@ -54,7 +54,8 @@ func serveCommand() *console.Command {
 			if log.GetLevel() > zerolog.InfoLevel {
 				log = log.Level(zerolog.InfoLevel)
 			}
-			return schedule.Serve(ctx, cfg.Jobs, launcher, log)
+			schedule.Serve(ctx, cfg.Jobs, launcher, log)
+			return nil
 		},
 	}
 }
