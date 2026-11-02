@@ -1,10 +1,12 @@
 package supervise
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
+	"io"
 	"maps"
 	"strings"
 	"testing"
@@ -141,6 +143,31 @@ func TestCancelStopsTheCommandWithoutLingering(t *testing.T) {
 	}
 	if code != 143 {
 		t.Errorf("code = %d, want 143", code)
+	}
+	if h.lingered != -1 || h.labeler.labels != nil {
+		t.Error("a canceled run lingered or recorded an outcome")
+	}
+}
+
+func TestCancelKillsACommandIgnoringSIGTERM(t *testing.T) {
+	h := newHarness()
+	r, w := io.Pipe()
+	h.sup.Stdout = w
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		if _, err := bufio.NewReader(r).ReadString('\n'); err == nil {
+			cancel()
+		}
+		_, _ = io.Copy(io.Discard, r)
+	}()
+	start := time.Now()
+	code := h.sup.Run(ctx, Options{Job: "a", Keep: time.Hour, Argv: []string{"sh", "-c", `trap "" TERM; echo ready; exec sleep 30`}})
+	_ = w.Close()
+	if time.Since(start) > 10*time.Second {
+		t.Fatal("the command was not killed")
+	}
+	if code != 137 {
+		t.Errorf("code = %d, want 137", code)
 	}
 	if h.lingered != -1 || h.labeler.labels != nil {
 		t.Error("a canceled run lingered or recorded an outcome")

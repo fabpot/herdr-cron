@@ -61,7 +61,8 @@ type Options struct {
 }
 
 // Run runs the command and returns its exit code once the keep duration is
-// over. Canceling ctx stops the command and returns at once.
+// over. Canceling ctx sends SIGTERM to the command, kills it if it is still
+// running after a short grace period, and returns without lingering.
 func (s *Supervisor) Run(ctx context.Context, o Options) int {
 	started := s.Now()
 	s.report(schedule.StateWorking, o.Job, "")
@@ -93,6 +94,7 @@ func (s *Supervisor) Run(ctx context.Context, o Options) int {
 func (s *Supervisor) exec(ctx context.Context, argv []string) int {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = time.Second
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.Stdin, s.Stdout, s.Stderr
 	if err := cmd.Start(); err != nil {
 		_, _ = fmt.Fprintf(s.Stderr, "herdr-cron: %v\n", err)
