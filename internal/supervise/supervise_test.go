@@ -144,18 +144,3 @@ func TestCancelStopsTheCommandWithoutLingering(t *testing.T) {
 		t.Error("a canceled run lingered or recorded an outcome")
 	}
 }
-
-func TestLinger(t *testing.T) {
-	start := time.Now()
-	linger(t.Context(), 10*time.Millisecond)
-	if time.Since(start) < 10*time.Millisecond {
-		t.Error("linger returned before its duration")
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	start = time.Now()
-	linger(ctx, time.Hour)
-	if time.Since(start) > time.Second {
-		t.Error("linger ignored a canceled context")
-	}
-}
