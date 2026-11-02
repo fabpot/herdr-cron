@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,10 +14,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type fakeTerminal struct {
+	hc.Terminal
+	labels map[string]string
+}
+
 type fakeTerminals struct {
-	running []hc.Terminal
-	pinned  []hc.Terminal
-	listed  []map[string]string
+	terms   []fakeTerminal
 	started []hc.StartOptions
 	ops     []string
 }
@@ -24,13 +28,15 @@ type fakeTerminals struct {
 func (f *fakeTerminals) Start(_ context.Context, o hc.StartOptions) (string, error) {
 	f.started = append(f.started, o)
 	f.ops = append(f.ops, "start")
-	return "t9", nil
+	addr := "s" + strconv.Itoa(len(f.started))
+	f.terms = append(f.terms, fakeTerminal{hc.Terminal{Address: addr, Argv: o.Argv}, o.Labels})
+	return addr, nil
 }
 
 func (f *fakeTerminals) Get(_ context.Context, address string) (hc.Terminal, error) {
-	for _, t := range f.pinned {
+	for _, t := range f.terms {
 		if t.Address == address {
-			return t, nil
+			return t.Terminal, nil
 		}
 	}
 	return hc.Terminal{}, errors.New("no terminal " + address)
@@ -38,21 +44,40 @@ func (f *fakeTerminals) Get(_ context.Context, address string) (hc.Terminal, err
 
 func (f *fakeTerminals) Kill(_ context.Context, address string) error {
 	f.ops = append(f.ops, "kill "+address)
+	f.terms = slices.DeleteFunc(f.terms, func(t fakeTerminal) bool { return t.Address == address })
 	return nil
 }
 
 func (f *fakeTerminals) List(_ context.Context, labels map[string]string) ([]hc.Terminal, error) {
-	f.listed = append(f.listed, labels)
-	if labels[LabelPin] != "" {
-		return f.pinned, nil
+	var list []hc.Terminal
+	for _, t := range f.terms {
+		matches := true
+		for k, v := range labels {
+			matches = matches && t.labels[k] == v
+		}
+		if matches {
+			list = append(list, hc.Terminal{Address: t.Address})
+		}
 	}
-	return f.running, nil
+	return list, nil
+}
+
+const space = "sp00000000000000000000000000000001"
+
+var pinArgv = []string{"/usr/bin/herdr-cron", "pin"}
+
+func pinTab(addr, space string, argv ...string) fakeTerminal {
+	return fakeTerminal{hc.Terminal{Address: addr, Argv: argv}, map[string]string{LabelPin: "true", "herdr.space": space}}
+}
+
+func runTab(addr, job, state string) fakeTerminal {
+	return fakeTerminal{hc.Terminal{Address: addr}, map[string]string{LabelJob: job, LabelState: state}}
 }
 
 func newTestLauncher(terms *fakeTerminals) *Launcher {
 	return &Launcher{
 		Terminals:  terms,
-		Space:      "sp00000000000000000000000000000001",
+		Space:      space,
 		Supervisor: []string{"/usr/bin/herdr-cron", "supervise", "--hc", "/usr/bin/hc"},
 		Pin:        []string{"/usr/bin/herdr-cron", "pin"},
 		PinDir:     "/home/me",
@@ -61,21 +86,16 @@ func newTestLauncher(terms *fakeTerminals) *Launcher {
 	}
 }
 
-var pin = hc.Terminal{Address: "t1", Argv: []string{"/usr/bin/herdr-cron", "pin"}}
-
 var job = config.Job{Name: "review", Dir: "/src/app", Command: []string{"void", "agent", "review.md"}, Keep: 48 * time.Hour}
 
 func TestLaunch(t *testing.T) {
-	terms := &fakeTerminals{pinned: []hc.Terminal{pin}}
+	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", space, pinArgv...)}}
 	addr, err := newTestLauncher(terms).Launch(t.Context(), job)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if addr != "t9" {
-		t.Errorf("address = %q, want t9", addr)
-	}
-	if want := map[string]string{LabelJob: "review", LabelState: StateWorking}; !maps.Equal(terms.listed[1], want) {
-		t.Errorf("overlap check listed %v, want %v", terms.listed[1], want)
+	if addr != "s1" {
+		t.Errorf("address = %q, want s1", addr)
 	}
 	if len(terms.started) != 1 {
 		t.Fatalf("started %d terminals, want only the run", len(terms.started))
@@ -85,7 +105,7 @@ func TestLaunch(t *testing.T) {
 		t.Errorf("name = %q, dir = %q", got.Name, got.Dir)
 	}
 	wantLabels := map[string]string{
-		"herdr.space": "sp00000000000000000000000000000001",
+		"herdr.space": space,
 		"herdr.tab":   "tb0123",
 		LabelJob:      "review",
 		LabelState:    StateWorking,
@@ -100,30 +120,34 @@ func TestLaunch(t *testing.T) {
 }
 
 func TestLaunchSkipsARunningJob(t *testing.T) {
-	terms := &fakeTerminals{running: []hc.Terminal{{Address: "t4"}}, pinned: []hc.Terminal{pin}}
-	_, err := newTestLauncher(terms).Launch(t.Context(), job)
-	if !errors.Is(err, ErrRunning) {
+	terms := &fakeTerminals{terms: []fakeTerminal{
+		pinTab("t1", space, pinArgv...),
+		runTab("t2", "other", StateWorking),
+		runTab("t3", "review", StateDone),
+	}}
+	l := newTestLauncher(terms)
+	if _, err := l.Launch(t.Context(), job); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Launch(t.Context(), job); !errors.Is(err, ErrRunning) {
 		t.Errorf("err = %v, want ErrRunning", err)
 	}
-	if len(terms.started) != 0 {
-		t.Error("a run started while the previous one was running")
+	if len(terms.started) != 1 {
+		t.Errorf("started %d runs, want 1", len(terms.started))
 	}
 }
 
 func TestLaunchStartsTheMissingPinFirst(t *testing.T) {
-	terms := &fakeTerminals{}
+	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", "sp00000000000000000000000000000002", pinArgv...)}}
 	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
 	if len(terms.started) != 2 {
 		t.Fatalf("started %d terminals, want the pin and the run", len(terms.started))
 	}
-	if want := map[string]string{LabelPin: "true", "herdr.space": "sp00000000000000000000000000000001"}; !maps.Equal(terms.listed[0], want) {
-		t.Errorf("pin check listed %v, want %v", terms.listed[0], want)
-	}
 	pin := terms.started[0]
-	wantLabels := map[string]string{LabelPin: "true", "herdr.space": "sp00000000000000000000000000000001", "herdr.tab": "tb0123"}
-	if !maps.Equal(pin.Labels, wantLabels) || pin.Dir != "/home/me" || pin.Name != "" || !slices.Equal(pin.Argv, []string{"/usr/bin/herdr-cron", "pin"}) {
+	wantLabels := map[string]string{LabelPin: "true", "herdr.space": space, "herdr.tab": "tb0123"}
+	if !maps.Equal(pin.Labels, wantLabels) || pin.Dir != "/home/me" || pin.Name != "" || !slices.Equal(pin.Argv, pinArgv) {
 		t.Errorf("pin = %+v", pin)
 	}
 	if terms.started[1].Labels[LabelJob] != "review" {
@@ -133,20 +157,22 @@ func TestLaunchStartsTheMissingPinFirst(t *testing.T) {
 
 func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
 	// herdr-core gives a kept terminal a shell when it restarts.
-	terms := &fakeTerminals{pinned: []hc.Terminal{{Address: "t2", Argv: []string{"/usr/bin/fish"}}}}
-	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t2", space, "/usr/bin/fish")}}
+	l := newTestLauncher(terms)
+	if _, err := l.Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"start", "start"}; !slices.Equal(terms.ops, want) {
 		t.Fatalf("ops = %q, want %q", terms.ops, want)
 	}
-	if got := terms.started[0]; got.Labels[LabelPin] != "true" || !slices.Equal(got.Argv, pin.Argv) {
+	if got := terms.started[0]; got.Labels[LabelPin] != "true" || !slices.Equal(got.Argv, pinArgv) {
 		t.Errorf("first terminal = %+v, want the pin", got)
 	}
 
-	terms.pinned = append(terms.pinned, pin)
 	terms.ops = nil
-	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
+	other := job
+	other.Name = "other"
+	if _, err := l.Launch(t.Context(), other); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"kill t2", "start"}; !slices.Equal(terms.ops, want) {
@@ -155,9 +181,7 @@ func TestLaunchReplacesAPinNoLongerRunningThePinProgram(t *testing.T) {
 }
 
 func TestLaunchKillsADuplicatePin(t *testing.T) {
-	duplicate := pin
-	duplicate.Address = "t2"
-	terms := &fakeTerminals{pinned: []hc.Terminal{pin, duplicate}}
+	terms := &fakeTerminals{terms: []fakeTerminal{pinTab("t1", space, pinArgv...), pinTab("t2", space, pinArgv...)}}
 	if _, err := newTestLauncher(terms).Launch(t.Context(), job); err != nil {
 		t.Fatal(err)
 	}
