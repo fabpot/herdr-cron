@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"maps"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -95,7 +94,7 @@ func TestRun(t *testing.T) {
 			if !strings.Contains(out, "review: "+tt.outcome+"; this tab closes on Mon Nov 2 05:03") {
 				t.Errorf("stdout lacks the summary: %q", out)
 			}
-			wantLabels := map[string]string{schedule.LabelState: tt.state, schedule.LabelExit: strconv.Itoa(tt.code)}
+			wantLabels := map[string]string{schedule.LabelState: tt.state}
 			if h.labeler.address != "t9" || !maps.Equal(h.labeler.labels, wantLabels) {
 				t.Errorf("labeled %s with %v, want t9 with %v", h.labeler.address, h.labeler.labels, wantLabels)
 			}

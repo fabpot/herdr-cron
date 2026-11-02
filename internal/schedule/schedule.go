@@ -20,7 +20,6 @@ import (
 const (
 	LabelJob   = "herdr-cron.job"
 	LabelState = "herdr-cron.state"
-	LabelExit  = "herdr-cron.exit"
 	LabelPin   = "herdr-cron.pin"
 
 	StateWorking = "working"

@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -82,7 +81,7 @@ func (s *Supervisor) Run(ctx context.Context, o Options) int {
 	_, _ = io.WriteString(s.Stdout, "\x1b]7501;state=clear\x1b\\")
 	s.report(state, o.Job, outcome)
 	if s.Labeler != nil && s.Terminal != "" {
-		if err := s.Labeler.Label(ctx, s.Terminal, map[string]string{schedule.LabelState: state, schedule.LabelExit: strconv.Itoa(code)}); err != nil {
+		if err := s.Labeler.Label(ctx, s.Terminal, map[string]string{schedule.LabelState: state}); err != nil {
 			_, _ = fmt.Fprintf(s.Stderr, "herdr-cron: %v\n", err)
 		}
 	}
