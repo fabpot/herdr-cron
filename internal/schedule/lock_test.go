@@ -59,7 +59,8 @@ func TestLaunchSerializesProcesses(t *testing.T) {
 			_ = cmd.Wait()
 		}
 	})
-	if line, err := bufio.NewReader(out).ReadString('\n'); err != nil || line != "starting\n" {
+	reader := bufio.NewReader(out)
+	if line, err := reader.ReadString('\n'); err != nil || line != "starting\n" {
 		t.Fatalf("launch readiness = %q, err = %v", line, err)
 	}
 
@@ -76,8 +77,12 @@ func TestLaunchSerializesProcesses(t *testing.T) {
 	}
 
 	_ = in.Close()
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.Wait(); err != nil {
-		t.Fatalf("launch process: %v", err)
+		t.Fatalf("launch process: %v\n%s", err, output)
 	}
 	if _, err := l.Launch(t.Context(), job); err != nil {
 		t.Fatalf("launch after the process exits: %v", err)
